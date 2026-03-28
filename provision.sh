@@ -9,111 +9,112 @@ REMOTE_DIR="/home/user/f1"
 BROWSE_TIMEOUT=3
 RESOLVE_TIMEOUT=3
 
-# ── Step 1: Discover Flipper One devices via mDNS ───────────────────────────
+if [ -n "${1:-}" ]; then
+    # ── Manual mode: IP provided as argument ────────────────────────────────
+    HOST="$1"
+    echo "Using provided IP: $HOST"
+    echo ""
+else
+    # ── Step 1: Discover Flipper One devices via mDNS ───────────────────────
 
-echo "Searching for Flipper One devices on LAN (${BROWSE_TIMEOUT}s)..."
-echo ""
+    echo "Searching for Flipper One devices on LAN (${BROWSE_TIMEOUT}s)..."
+    echo ""
 
-BROWSE_OUTPUT=$(mktemp)
-dns-sd -B "$SERVICE_TYPE" . > "$BROWSE_OUTPUT" 2>/dev/null &
-BROWSE_PID=$!
-sleep "$BROWSE_TIMEOUT"
-kill "$BROWSE_PID" 2>/dev/null || true
-wait "$BROWSE_PID" 2>/dev/null || true
+    BROWSE_OUTPUT=$(mktemp)
+    dns-sd -B "$SERVICE_TYPE" . > "$BROWSE_OUTPUT" 2>/dev/null &
+    BROWSE_PID=$!
+    sleep "$BROWSE_TIMEOUT"
+    kill "$BROWSE_PID" 2>/dev/null || true
+    wait "$BROWSE_PID" 2>/dev/null || true
 
-# Parse instance names from dns-sd browse output
-# Output lines look like: "12:00:00.000  Add  2  4  local.  _flipper._tcp.  rk3576-debian13-0"
-INSTANCES=()
-while IFS= read -r line; do
-    [ -n "$line" ] && INSTANCES+=("$line")
-done < <(awk '$2 == "Add" {print $NF}' "$BROWSE_OUTPUT" | sort -u)
-rm -f "$BROWSE_OUTPUT"
+    # Parse instance names from dns-sd browse output
+    # Output lines look like: "12:00:00.000  Add  2  4  local.  _flipper._tcp.  rk3576-debian13-0"
+    INSTANCES=()
+    while IFS= read -r line; do
+        [ -n "$line" ] && INSTANCES+=("$line")
+    done < <(awk '$2 == "Add" {print $NF}' "$BROWSE_OUTPUT" | sort -u)
+    rm -f "$BROWSE_OUTPUT"
 
-if [ ${#INSTANCES[@]} -eq 0 ]; then
-    echo "No Flipper One devices found on LAN."
-    echo "Make sure the device is powered on and connected to the same network."
-    exit 1
-fi
-
-# ── Step 2: Resolve each device (hostname, IP, serial) ──────────────────────
-
-declare -a HOSTNAMES
-declare -a IPS
-declare -a SERIALS
-
-for instance in "${INSTANCES[@]}"; do
-    # Lookup service to get hostname and TXT record (serial)
-    LOOKUP_OUTPUT=$(mktemp)
-    dns-sd -L "$instance" "$SERVICE_TYPE" local. > "$LOOKUP_OUTPUT" 2>/dev/null &
-    LOOKUP_PID=$!
-    sleep "$RESOLVE_TIMEOUT"
-    kill "$LOOKUP_PID" 2>/dev/null || true
-    wait "$LOOKUP_PID" 2>/dev/null || true
-
-    # Parse hostname (e.g., "rk3576-debian13-0.local.") and serial from TXT
-    hostname=$(grep 'can be reached at' "$LOOKUP_OUTPUT" | sed -E 's/.*can be reached at ([^ :]+).*/\1/' | sed 's/\.$//')
-    serial=$(grep -oE 'serial=[^ ]+' "$LOOKUP_OUTPUT" | cut -d= -f2 || echo "unknown")
-    rm -f "$LOOKUP_OUTPUT"
-
-    if [ -z "$hostname" ]; then
-        hostname="${instance}.local"
+    if [ ${#INSTANCES[@]} -eq 0 ]; then
+        echo "No Flipper One devices found on LAN."
+        echo "Make sure the device is powered on and connected to the same network."
+        exit 1
     fi
 
-    # Resolve hostname to IP address
-    RESOLVE_OUTPUT=$(mktemp)
-    dns-sd -G v4 "$hostname" > "$RESOLVE_OUTPUT" 2>/dev/null &
-    RESOLVE_PID=$!
-    sleep "$RESOLVE_TIMEOUT"
-    kill "$RESOLVE_PID" 2>/dev/null || true
-    wait "$RESOLVE_PID" 2>/dev/null || true
+    # ── Step 2: Resolve each device (hostname, IP, serial) ──────────────────
 
-    # Parse IP from resolve output
-    # Lines look like: "Timestamp  A/R Flags  if  Hostname  Address  TTL"
-    ip=$(awk '$2 == "Add" {print $(NF-1)}' "$RESOLVE_OUTPUT" | head -1)
-    rm -f "$RESOLVE_OUTPUT"
+    declare -a HOSTNAMES
+    declare -a IPS
+    declare -a SERIALS
 
-    if [ -z "$ip" ]; then
-        ip="(unresolved)"
+    for instance in "${INSTANCES[@]}"; do
+        # Lookup service to get hostname and TXT record (serial)
+        LOOKUP_OUTPUT=$(mktemp)
+        dns-sd -L "$instance" "$SERVICE_TYPE" local. > "$LOOKUP_OUTPUT" 2>/dev/null &
+        LOOKUP_PID=$!
+        sleep "$RESOLVE_TIMEOUT"
+        kill "$LOOKUP_PID" 2>/dev/null || true
+        wait "$LOOKUP_PID" 2>/dev/null || true
+
+        # Parse hostname (e.g., "rk3576-debian13-0.local.") and serial from TXT
+        hostname=$(grep 'can be reached at' "$LOOKUP_OUTPUT" | sed -E 's/.*can be reached at ([^ :]+).*/\1/' | sed 's/\.$//')
+        serial=$(grep -oE 'serial=[^ ]+' "$LOOKUP_OUTPUT" | cut -d= -f2 || echo "unknown")
+        rm -f "$LOOKUP_OUTPUT"
+
+        if [ -z "$hostname" ]; then
+            hostname="${instance}.local"
+        fi
+
+        # Resolve hostname to IP address
+        RESOLVE_OUTPUT=$(mktemp)
+        dns-sd -G v4 "$hostname" > "$RESOLVE_OUTPUT" 2>/dev/null &
+        RESOLVE_PID=$!
+        sleep "$RESOLVE_TIMEOUT"
+        kill "$RESOLVE_PID" 2>/dev/null || true
+        wait "$RESOLVE_PID" 2>/dev/null || true
+
+        # Parse IP from resolve output
+        # Lines look like: "Timestamp  A/R Flags  if  Hostname  Address  TTL"
+        ip=$(awk '$2 == "Add" {print $(NF-1)}' "$RESOLVE_OUTPUT" | head -1)
+        rm -f "$RESOLVE_OUTPUT"
+
+        if [ -z "$ip" ]; then
+            ip="(unresolved)"
+        fi
+
+        HOSTNAMES+=("$hostname")
+        IPS+=("$ip")
+        SERIALS+=("$serial")
+    done
+
+    # ── Step 3: Display devices and let user choose ─────────────────────────
+
+    echo "Found ${#INSTANCES[@]} Flipper One device(s):"
+    echo ""
+    printf "  %-4s %-18s %-20s %s\n" "#" "IP Address" "Serial" "Hostname"
+    printf "  %-4s %-18s %-20s %s\n" "---" "------------------" "--------------------" "--------"
+    for i in "${!INSTANCES[@]}"; do
+        printf "  %-4s %-18s %-20s %s\n" "$((i+1))" "${IPS[$i]}" "${SERIALS[$i]}" "${HOSTNAMES[$i]}"
+    done
+    echo ""
+
+    read -rp "Select device number [1-${#INSTANCES[@]}]: " CHOICE
+    if ! [[ "$CHOICE" =~ ^[0-9]+$ ]] || [ "$CHOICE" -lt 1 ] || [ "$CHOICE" -gt ${#INSTANCES[@]} ]; then
+        echo "Invalid selection."
+        exit 1
     fi
 
-    HOSTNAMES+=("$hostname")
-    IPS+=("$ip")
-    SERIALS+=("$serial")
-done
-
-# ── Step 3: Display devices and let user choose ─────────────────────────────
-
-echo "Found ${#INSTANCES[@]} Flipper One device(s):"
-echo ""
-printf "  %-4s %-18s %-20s %s\n" "#" "IP Address" "Serial" "Hostname"
-printf "  %-4s %-18s %-20s %s\n" "---" "------------------" "--------------------" "--------"
-for i in "${!INSTANCES[@]}"; do
-    printf "  %-4s %-18s %-20s %s\n" "$((i+1))" "${IPS[$i]}" "${SERIALS[$i]}" "${HOSTNAMES[$i]}"
-done
-echo ""
-
-read -rp "Select device number [1-${#INSTANCES[@]}]: " CHOICE
-if ! [[ "$CHOICE" =~ ^[0-9]+$ ]] || [ "$CHOICE" -lt 1 ] || [ "$CHOICE" -gt ${#INSTANCES[@]} ]; then
-    echo "Invalid selection."
-    exit 1
+    IDX=$((CHOICE - 1))
+    HOST="${IPS[$IDX]}"
+    echo ""
+    echo "Selected: ${HOSTNAMES[$IDX]} ($HOST) serial=${SERIALS[$IDX]}"
+    echo ""
 fi
-
-IDX=$((CHOICE - 1))
-HOST="${IPS[$IDX]}"
-HOSTNAME="${HOSTNAMES[$IDX]}"
-SERIAL="${SERIALS[$IDX]}"
-
-echo ""
-echo "Selected: $HOSTNAME ($HOST) serial=$SERIAL"
-echo ""
 
 # ── Step 4: Remove old SSH host keys ────────────────────────────────────────
 
 echo "Removing old SSH host key for $HOST from known_hosts..."
 ssh-keygen -R "$HOST" 2>&1 | grep -v '^#' || true
-
-echo "Removing old SSH host key for $HOSTNAME from known_hosts..."
-ssh-keygen -R "$HOSTNAME" 2>&1 | grep -v '^#' || true
 
 echo ""
 
