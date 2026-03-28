@@ -2,6 +2,10 @@
 
 Flipper One is a portable Linux computer based on the Rockchip RK3576 SoC with an RP2350 co-processor for hardware control. This is the main working directory that contains all related repositories and tooling.
 
+## Rules
+
+- Never add `Co-Authored-By` lines to git commit messages.
+
 ## Development environment
 
 Claude Code sessions run in two contexts:
