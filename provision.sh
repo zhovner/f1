@@ -150,7 +150,8 @@ FSWATCH_LOG="$SCRIPT_DIR/logs/fswatch.log"
 FSWATCH_PID=""
 if command -v fswatch >/dev/null 2>&1; then
     echo "Starting fswatch file monitor → $FSWATCH_LOG"
-    fswatch -r --event Created --event Removed --event Renamed --event Updated \
+    fswatch -r -x --event-flag-separator=' ' \
+        --event Created --event Removed --event Renamed --event Updated \
         --exclude '/logs/' --exclude '/\.git/' \
         "$SCRIPT_DIR" | while IFS= read -r f; do
         line="$(date '+%Y-%m-%d %H:%M:%S') $f"
