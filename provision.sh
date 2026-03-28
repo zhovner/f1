@@ -194,11 +194,11 @@ SESSION=$("$MUTAGEN" sync create \
     "$SSH_USER@$HOST:$REMOTE_DIR" \
     --label "flipper=provision" \
     --sync-mode two-way-safe \
-    --ignore ".git" \
-    --ignore ".gitignore" \
+    --ignore "/.git" \
+    --ignore "/.gitignore" \
     --ignore ".DS_Store" \
-    --ignore "logs" \
-    --ignore "provision.sh" \
+    --ignore "/logs" \
+    --ignore "/provision.sh" \
     2>&1 | grep -oE 'sync_[A-Za-z0-9]+' || true)
 
 if [ -n "$SESSION" ]; then
