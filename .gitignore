@@ -1,0 +1,8 @@
+# Ignore everything
+*
+# Track only these files
+!.gitignore
+!provision.sh
+!CLAUDE.md
+!logs/
+!logs/**
