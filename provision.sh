@@ -21,7 +21,7 @@ else
     echo ""
 
     BROWSE_OUTPUT=$(mktemp)
-    dns-sd -B "$SERVICE_TYPE" . > "$BROWSE_OUTPUT" 2>/dev/null &
+    dns-sd -B "$SERVICE_TYPE" . >"$BROWSE_OUTPUT" 2>&1 </dev/null &
     BROWSE_PID=$!
     sleep "$BROWSE_TIMEOUT"
     kill "$BROWSE_PID" 2>/dev/null || true
@@ -50,7 +50,7 @@ else
     for instance in "${INSTANCES[@]}"; do
         # Lookup service to get hostname and TXT record (serial)
         LOOKUP_OUTPUT=$(mktemp)
-        dns-sd -L "$instance" "$SERVICE_TYPE" local. > "$LOOKUP_OUTPUT" 2>/dev/null &
+        dns-sd -L "$instance" "$SERVICE_TYPE" local. >"$LOOKUP_OUTPUT" 2>&1 </dev/null &
         LOOKUP_PID=$!
         sleep "$RESOLVE_TIMEOUT"
         kill "$LOOKUP_PID" 2>/dev/null || true
@@ -67,7 +67,7 @@ else
 
         # Resolve hostname to IP address
         RESOLVE_OUTPUT=$(mktemp)
-        dns-sd -G v4 "$hostname" > "$RESOLVE_OUTPUT" 2>/dev/null &
+        dns-sd -G v4 "$hostname" >"$RESOLVE_OUTPUT" 2>&1 </dev/null &
         RESOLVE_PID=$!
         sleep "$RESOLVE_TIMEOUT"
         kill "$RESOLVE_PID" 2>/dev/null || true
