@@ -168,7 +168,12 @@ echo ""
 
 # ── Step 8: Start mutagen sync in foreground ────────────────────────────────
 
-MUTAGEN="$(command -v mutagen || echo /opt/homebrew/Cellar/mutagen/0.18.1/bin/mutagen)"
+MUTAGEN="$(command -v mutagen || true)"
+if [ -z "$MUTAGEN" ]; then
+    echo "Mutagen not found, please install:"
+    echo "  brew install mutagen"
+    exit 1
+fi
 
 # Cleanup on exit: terminate mutagen session and fswatch
 cleanup() {
