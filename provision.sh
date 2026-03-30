@@ -252,7 +252,7 @@ YAML
     echo ""
 
     # Run wsgidav in foreground (logs to stdout)
-    wsgidav --config "$WEBDAV_CONFIG" --no-config
+    wsgidav --config "$WEBDAV_CONFIG"
 
 else
     # ── Mutagen mode (default) ───────────────────────────────────────────────
