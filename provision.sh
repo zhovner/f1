@@ -194,7 +194,7 @@ trap cleanup EXIT
 echo "Starting mutagen sync: $SCRIPT_DIR → $SSH_USER@$HOST:$REMOTE_DIR"
 echo ""
 
-SESSION=$("$MUTAGEN" sync create \
+CREATE_OUTPUT=$("$MUTAGEN" sync create \
     "$SCRIPT_DIR" \
     "$SSH_USER@$HOST:$REMOTE_DIR" \
     --label "flipper=provision" \
@@ -204,8 +204,9 @@ SESSION=$("$MUTAGEN" sync create \
     --ignore ".DS_Store" \
     --ignore "/logs" \
     --ignore "/provision.sh" \
-    2>&1 | grep -oE 'sync_[A-Za-z0-9]+' || true)
+    2>&1)
 
+SESSION=$(echo "$CREATE_OUTPUT" | grep -oE 'sync_[A-Za-z0-9]+' || true)
 if [ -n "$SESSION" ]; then
     echo "Sync session created: $SESSION"
 else
