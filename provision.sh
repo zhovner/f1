@@ -235,7 +235,7 @@ simple_dc:
 verbose: 3
 YAML
 
-    MOUNT_CMD="sudo mkdir -p $REMOTE_DIR && sudo mount -t davfs http://${LOCAL_IP}:${WEBDAV_PORT} $REMOTE_DIR"
+    MOUNT_CMD="sudo mkdir -p $REMOTE_DIR && sudo mount -t davfs http://${LOCAL_IP}:${WEBDAV_PORT} $REMOTE_DIR -o uid=\$(id -u $SSH_USER),gid=\$(id -g $SSH_USER)"
 
     echo "WebDAV server: http://${LOCAL_IP}:${WEBDAV_PORT}"
     echo "  User: $DAV_USER"
@@ -243,6 +243,8 @@ YAML
     echo ""
     echo "Run on the device:"
     echo ""
+    echo "  sudo apt install -y davfs2"
+    echo "  echo 'buf_size 1048576' | sudo tee -a /etc/davfs2/davfs2.conf"
     echo "  $MOUNT_CMD"
     echo ""
     echo "Ctrl+C to stop."
