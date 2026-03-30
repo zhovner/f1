@@ -171,7 +171,7 @@ echo ""
 MUTAGEN="$(command -v mutagen || true)"
 if [ -z "$MUTAGEN" ]; then
     echo "Mutagen not found, please install:"
-    echo "  brew install mutagen"
+    echo "  brew install mutagen-io/mutagen/mutagen"
     exit 1
 fi
 
