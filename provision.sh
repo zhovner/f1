@@ -8,6 +8,18 @@ SSH_USER="user"
 REMOTE_DIR="/home/user/f1"
 BROWSE_TIMEOUT=3
 RESOLVE_TIMEOUT=3
+WEBDAV_MODE=false
+WEBDAV_PORT=8080
+
+# Parse arguments
+POSITIONAL=()
+for arg in "$@"; do
+    case "$arg" in
+        --webdav) WEBDAV_MODE=true ;;
+        *) POSITIONAL+=("$arg") ;;
+    esac
+done
+set -- "${POSITIONAL[@]+"${POSITIONAL[@]}"}"
 
 if [ -n "${1:-}" ]; then
     # ── Manual mode: IP provided as argument ────────────────────────────────
@@ -166,20 +178,18 @@ else
 fi
 echo ""
 
-# ── Step 8: Start mutagen sync in foreground ────────────────────────────────
+# ── Step 8: Start file sharing in foreground ─────────────────────────────────
 
-MUTAGEN="$(command -v mutagen || true)"
-if [ -z "$MUTAGEN" ]; then
-    echo "Mutagen not found, please install:"
-    echo "  brew install mutagen-io/mutagen/mutagen"
-    exit 1
-fi
-
-# Cleanup on exit: terminate mutagen session and fswatch
+# Cleanup on exit
 cleanup() {
     echo ""
-    echo "Stopping mutagen sync session..."
-    timeout 5 "$MUTAGEN" sync terminate --label-selector "flipper=provision" 2>/dev/null || true
+    if [ "$WEBDAV_MODE" = true ]; then
+        echo "Stopping WebDAV server..."
+        rm -f "$WEBDAV_CONFIG" 2>/dev/null
+    else
+        echo "Stopping mutagen sync session..."
+        timeout 5 "$MUTAGEN" sync terminate --label-selector "flipper=provision" 2>/dev/null || true
+    fi
     if [ -n "$FSWATCH_PID" ]; then
         kill "$FSWATCH_PID" 2>/dev/null
         wait "$FSWATCH_PID" 2>/dev/null || true
@@ -188,33 +198,99 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Terminate any existing sync sessions for this path (timeout after 5s)
-timeout 5 "$MUTAGEN" sync terminate --label-selector "flipper=provision" 2>/dev/null || true
+if [ "$WEBDAV_MODE" = true ]; then
+    # ── WebDAV mode ──────────────────────────────────────────────────────────
 
-echo "Starting mutagen sync: $SCRIPT_DIR → $SSH_USER@$HOST:$REMOTE_DIR"
-echo ""
+    if ! command -v wsgidav >/dev/null 2>&1; then
+        echo "wsgidav not found, please install:"
+        echo "  pip install wsgidav cheroot"
+        exit 1
+    fi
 
-CREATE_OUTPUT=$("$MUTAGEN" sync create \
-    "$SCRIPT_DIR" \
-    "$SSH_USER@$HOST:$REMOTE_DIR" \
-    --label "flipper=provision" \
-    --sync-mode two-way-safe \
-    --ignore "/.git" \
-    --ignore "/.gitignore" \
-    --ignore ".DS_Store" \
-    --ignore "/logs" \
-    --ignore "/provision.sh" \
-    2>&1)
+    # Generate temporary credentials
+    DAV_USER="flipper"
+    DAV_PASS=$(LC_ALL=C tr -dc 'a-zA-Z0-9' </dev/urandom | head -c 12)
 
-SESSION=$(echo "$CREATE_OUTPUT" | grep -oE 'sync_[A-Za-z0-9]+' || true)
-if [ -n "$SESSION" ]; then
-    echo "Sync session created: $SESSION"
+    # Get local IP address (the one facing the device)
+    LOCAL_IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo "YOUR_MAC_IP")
+
+    # Create temporary wsgidav config with authentication
+    WEBDAV_CONFIG=$(mktemp /tmp/wsgidav-XXXXXX.yaml)
+    cat > "$WEBDAV_CONFIG" <<YAML
+host: 0.0.0.0
+port: $WEBDAV_PORT
+provider_mapping:
+    "/": "$SCRIPT_DIR"
+http_authenticator:
+    domain_controller: null
+    accept_basic: true
+    accept_digest: true
+    default_to_digest: true
+simple_dc:
+    user_mapping:
+        "*":
+            "$DAV_USER":
+                password: "$DAV_PASS"
+verbose: 3
+YAML
+
+    echo "╔══════════════════════════════════════════════════════════════════╗"
+    echo "║  WebDAV server starting on http://${LOCAL_IP}:${WEBDAV_PORT}   "
+    echo "║                                                                ║"
+    echo "║  User: $DAV_USER                                              "
+    echo "║  Pass: $DAV_PASS                                              "
+    echo "║                                                                ║"
+    echo "║  Run on the device:                                            ║"
+    echo "║                                                                ║"
+    echo "║  sudo mkdir -p $REMOTE_DIR && sudo mount -t davfs \\           "
+    echo "║    http://${LOCAL_IP}:${WEBDAV_PORT} $REMOTE_DIR               "
+    echo "║                                                                ║"
+    echo "╚══════════════════════════════════════════════════════════════════╝"
+    echo ""
+    echo "Ctrl+C to stop."
+    echo ""
+
+    # Run wsgidav in foreground (logs to stdout)
+    wsgidav --config "$WEBDAV_CONFIG" --no-config
+
 else
-    echo "Sync session created."
+    # ── Mutagen mode (default) ───────────────────────────────────────────────
+
+    MUTAGEN="$(command -v mutagen || true)"
+    if [ -z "$MUTAGEN" ]; then
+        echo "Mutagen not found, please install:"
+        echo "  brew install mutagen-io/mutagen/mutagen"
+        exit 1
+    fi
+
+    # Terminate any existing sync sessions for this path (timeout after 5s)
+    timeout 5 "$MUTAGEN" sync terminate --label-selector "flipper=provision" 2>/dev/null || true
+
+    echo "Starting mutagen sync: $SCRIPT_DIR → $SSH_USER@$HOST:$REMOTE_DIR"
+    echo ""
+
+    CREATE_OUTPUT=$("$MUTAGEN" sync create \
+        "$SCRIPT_DIR" \
+        "$SSH_USER@$HOST:$REMOTE_DIR" \
+        --label "flipper=provision" \
+        --sync-mode two-way-safe \
+        --ignore "/.git" \
+        --ignore "/.gitignore" \
+        --ignore ".DS_Store" \
+        --ignore "/logs" \
+        --ignore "/provision.sh" \
+        2>&1)
+
+    SESSION=$(echo "$CREATE_OUTPUT" | grep -oE 'sync_[A-Za-z0-9]+' || true)
+    if [ -n "$SESSION" ]; then
+        echo "Sync session created: $SESSION"
+    else
+        echo "Sync session created."
+    fi
+
+    echo "Monitoring sync (Ctrl+C to stop)..."
+    echo ""
+
+    # Keep in foreground — monitor will show ongoing sync activity
+    "$MUTAGEN" sync monitor --label-selector "flipper=provision"
 fi
-
-echo "Monitoring sync (Ctrl+C to stop)..."
-echo ""
-
-# Keep in foreground — monitor will show ongoing sync activity
-"$MUTAGEN" sync monitor --label-selector "flipper=provision"
