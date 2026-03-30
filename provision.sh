@@ -179,7 +179,7 @@ fi
 cleanup() {
     echo ""
     echo "Stopping mutagen sync session..."
-    "$MUTAGEN" sync terminate --label-selector "flipper=provision" 2>/dev/null || true
+    timeout 5 "$MUTAGEN" sync terminate --label-selector "flipper=provision" 2>/dev/null || true
     if [ -n "$FSWATCH_PID" ]; then
         kill "$FSWATCH_PID" 2>/dev/null
         wait "$FSWATCH_PID" 2>/dev/null || true
@@ -188,8 +188,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Terminate any existing sync sessions for this path
-"$MUTAGEN" sync terminate --label-selector "flipper=provision" 2>/dev/null || true
+# Terminate any existing sync sessions for this path (timeout after 5s)
+timeout 5 "$MUTAGEN" sync terminate --label-selector "flipper=provision" 2>/dev/null || true
 
 echo "Starting mutagen sync: $SCRIPT_DIR → $SSH_USER@$HOST:$REMOTE_DIR"
 echo ""
