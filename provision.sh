@@ -235,18 +235,15 @@ simple_dc:
 verbose: 3
 YAML
 
-    echo "╔══════════════════════════════════════════════════════════════════╗"
-    echo "║  WebDAV server starting on http://${LOCAL_IP}:${WEBDAV_PORT}   "
-    echo "║                                                                ║"
-    echo "║  User: $DAV_USER                                              "
-    echo "║  Pass: $DAV_PASS                                              "
-    echo "║                                                                ║"
-    echo "║  Run on the device:                                            ║"
-    echo "║                                                                ║"
-    echo "║  sudo mkdir -p $REMOTE_DIR && sudo mount -t davfs \\           "
-    echo "║    http://${LOCAL_IP}:${WEBDAV_PORT} $REMOTE_DIR               "
-    echo "║                                                                ║"
-    echo "╚══════════════════════════════════════════════════════════════════╝"
+    MOUNT_CMD="sudo mkdir -p $REMOTE_DIR && sudo mount -t davfs http://${LOCAL_IP}:${WEBDAV_PORT} $REMOTE_DIR"
+
+    echo "WebDAV server: http://${LOCAL_IP}:${WEBDAV_PORT}"
+    echo "  User: $DAV_USER"
+    echo "  Pass: $DAV_PASS"
+    echo ""
+    echo "Run on the device:"
+    echo ""
+    echo "  $MOUNT_CMD"
     echo ""
     echo "Ctrl+C to stop."
     echo ""
