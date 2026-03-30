@@ -210,7 +210,7 @@ if [ "$WEBDAV_MODE" = true ]; then
 
     # Generate temporary credentials
     DAV_USER="flipper"
-    DAV_PASS=$(LC_ALL=C tr -dc 'a-zA-Z0-9' </dev/urandom | head -c 12)
+    DAV_PASS=$(LC_ALL=C tr -dc 'a-zA-Z0-9' </dev/urandom | head -c 12 || true)
 
     # Get local IP address (the one facing the device)
     LOCAL_IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo "YOUR_MAC_IP")
