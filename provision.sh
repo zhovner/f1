@@ -57,8 +57,8 @@ else
         wait "$LOOKUP_PID" 2>/dev/null || true
 
         # Parse hostname (e.g., "rk3576-debian13-0.local.") and serial from TXT
-        hostname=$(grep 'can be reached at' "$LOOKUP_OUTPUT" | sed -E 's/.*can be reached at ([^ :]+).*/\1/' | sed 's/\.$//')
-        serial=$(grep -oE 'serial=[^ ]+' "$LOOKUP_OUTPUT" | cut -d= -f2 || echo "unknown")
+        hostname=$(grep 'can be reached at' "$LOOKUP_OUTPUT" | head -1 | sed -E 's/.*can be reached at ([^ :]+).*/\1/' | sed 's/\.$//')
+        serial=$(grep -oE 'serial=[^ ]+' "$LOOKUP_OUTPUT" | head -1 | cut -d= -f2 || echo "unknown")
         rm -f "$LOOKUP_OUTPUT"
 
         if [ -z "$hostname" ]; then
