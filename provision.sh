@@ -244,7 +244,7 @@ YAML
     echo "Run on the device:"
     echo ""
     echo "  sudo apt install -y davfs2"
-    echo "  echo 'buf_size 1048576' | sudo tee -a /etc/davfs2/davfs2.conf"
+    echo "  echo -e 'buf_size 1048576\nuse_locks 0' | sudo tee -a /etc/davfs2/davfs2.conf"
     echo "  $MOUNT_CMD"
     echo ""
     echo "Ctrl+C to stop."
