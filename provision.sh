@@ -13,8 +13,8 @@ RESOLVE_TIMEOUT=2     # seconds to resolve hostname
 SSH_OPTS=(-o LogLevel=error -o StrictHostKeyChecking=accept-new)
 
 RSYNC_EXCLUDES=(
-    --exclude '.git/'
-    --exclude '.gitignore'
+    --exclude '/.git/'
+    --exclude '/.gitignore'
     --exclude '.DS_Store'
     --exclude '.claude/'
     --exclude 'logs/'
@@ -33,7 +33,8 @@ else
     echo ""
 
     BROWSE_OUTPUT=$(mktemp)
-    trap "rm -f '$BROWSE_OUTPUT'; exit 0" EXIT INT
+    # shellcheck disable=SC2064
+    trap "rm -f '$BROWSE_OUTPUT'" EXIT
 
     # Start dns-sd in background, stream its output
     dns-sd -B "$SERVICE_TYPE" . >"$BROWSE_OUTPUT" 2>&1 </dev/null &
@@ -123,15 +124,17 @@ echo ""
 
 do_sync() {
     # Pull remote changes first (newer files win)
-    rsync -rltz --update --itemize-changes \
+    rsync -rltz --update --force --itemize-changes \
+        --no-perms --no-owner --no-group --omit-dir-times \
         -e "ssh ${SSH_OPTS[*]}" \
         "${RSYNC_EXCLUDES[@]}" \
-        "$SSH_USER@$HOST:$REMOTE_DIR/" "$SCRIPT_DIR/"
+        "$SSH_USER@$HOST:$REMOTE_DIR/" "$SCRIPT_DIR/" </dev/null
     # Push local changes to remote (newer files win, delete remote-only files)
-    rsync -rltz --update --delete --itemize-changes \
+    rsync -rltz --update --delete --force --itemize-changes \
+        --no-perms --no-owner --no-group --omit-dir-times \
         -e "ssh ${SSH_OPTS[*]}" \
         "${RSYNC_EXCLUDES[@]}" \
-        "$SCRIPT_DIR/" "$SSH_USER@$HOST:$REMOTE_DIR/"
+        "$SCRIPT_DIR/" "$SSH_USER@$HOST:$REMOTE_DIR/" </dev/null
 }
 
 read -rp "Sync current folder to $SSH_USER@$HOST:$REMOTE_DIR? [Y/n] " SYNC_ANSWER
@@ -146,8 +149,12 @@ if [[ "$SYNC_ANSWER" =~ ^[Yy]$ ]]; then
     echo ""
 
     echo "Press Enter to sync again, Ctrl+C to quit."
+    set +e
     while true; do
-        read -r
+        if ! read -r </dev/tty; then
+            echo "(stdin closed, exiting)"
+            break
+        fi
         echo -n "[$(date '+%H:%M:%S')] Syncing... "
         OUT=$(do_sync 2>&1)
         if [ -n "$OUT" ]; then
