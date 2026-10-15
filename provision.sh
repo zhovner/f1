@@ -55,7 +55,7 @@ else
             if [ "$found" = false ] && [ -n "$instance" ]; then
                 INSTANCES+=("$instance")
                 SEEN_COUNT=$((SEEN_COUNT + 1))
-                printf "  [%d] %s\n" "$SEEN_COUNT" "$instance"
+                printf "  [%d] %s.local\n" "$SEEN_COUNT" "$instance"
             fi
         done < <(awk '$2 == "Add" {print $NF}' "$BROWSE_OUTPUT" 2>/dev/null | sort -u)
         sleep 0.1
