@@ -19,6 +19,7 @@ RSYNC_EXCLUDES=(
     --exclude '.claude/'
     --exclude 'logs/'
     --exclude 'provision.sh'
+    --exclude 'blog'
 )
 
 if [ -n "${1:-}" ]; then
